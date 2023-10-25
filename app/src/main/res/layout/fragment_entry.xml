@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:orientation="vertical"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="16dp"
+        tools:context=".ui.EntryFragment"
+        android:gravity="center">
+
+        <TextView
+            android:text="Capture Snapshot"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:layout_marginTop="16dp"
+            android:id="@+id/videoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Video"
+            android:layout_marginHorizontal="4dp"/>
+
+        <Button
+            android:id="@+id/photoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Photo"
+            android:layout_marginHorizontal="4dp"/>
+
+        <Button
+            android:id="@+id/imagePickerButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Picker" />
+
+        <Button
+            android:id="@+id/imageCaptureSnapshotButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Picker" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
