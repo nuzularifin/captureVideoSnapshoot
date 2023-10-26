@@ -124,7 +124,6 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/cl_action"
         android:orientation="vertical"
-        android:padding="12dp"
         android:background="@color/black_gray"
         android:layout_width="match_parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -132,11 +131,24 @@
         app:layout_constraintBottom_toBottomOf="parent"
         android:layout_height="wrap_content">
 
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            app:layout_constraintTop_toTopOf="parent"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:id="@+id/progress"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:max="100" />
+
         <androidx.appcompat.widget.AppCompatImageButton
             style="@style/Base.Theme.CaptureSnapshot"
-            android:layout_marginHorizontal="12dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginVertical="16dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/progress"
             app:layout_constraintBottom_toBottomOf="parent"
             android:id="@+id/btn_gallery"
             android:src="@drawable/ic_flash"
@@ -150,22 +162,24 @@
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:background="@drawable/selectable_button_bg"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/progress"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toEndOf="@id/btn_gallery"
             app:layout_constraintEnd_toStartOf="@id/btn_video_record"
             android:id="@+id/btn_take_photo"
+            android:layout_marginVertical="16dp"
             android:text="@string/take_photo"
             android:src="@drawable/ic_camera"
             android:layout_width="60dp"
             android:layout_height="60dp"/>
 
         <androidx.appcompat.widget.AppCompatImageButton
-            android:layout_marginHorizontal="12dp"
+            android:layout_marginHorizontal="16dp"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/progress"
             app:layout_constraintBottom_toBottomOf="parent"
             android:id="@+id/btn_video_record"
+            android:layout_marginVertical="16dp"
             android:background="@drawable/selectable_button_bg"
             android:text="Start Recording"
             android:src="@drawable/ic_refresh"

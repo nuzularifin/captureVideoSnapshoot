@@ -74,4 +74,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.4.0")
 
     implementation("com.github.bumptech.glide:glide:4.16.0")
+
+    implementation("com.github.MasayukiSuda:Mp4Composer-android:v0.4.1")
 }

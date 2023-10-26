@@ -1,18 +1,15 @@
 package com.nuzul.capturesnapshot.ui
 
 import android.Manifest
-import android.content.ComponentName
+import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.graphics.Bitmap
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.os.IBinder
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
@@ -23,7 +20,6 @@ import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
 import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -35,20 +31,23 @@ import androidx.camera.video.Recorder
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
-import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.daasuu.mp4compose.FillMode
+import com.daasuu.mp4compose.VideoFormatMimeType
+import com.daasuu.mp4compose.composer.Mp4Composer
 import com.nuzul.capturesnapshot.MainActivity
 import com.nuzul.capturesnapshot.R
 import com.nuzul.capturesnapshot.databinding.FragmentVideoCaptureSnapshotBinding
-import com.nuzul.capturesnapshot.extension.getFormattedVideoSizeInMB
 import com.nuzul.capturesnapshot.extension.getPath
-import com.nuzul.capturesnapshot.extension.getRealSizeFromUri
 import com.nuzul.capturesnapshot.extension.getSizeFileUri
+import com.nuzul.capturesnapshot.extension.getVideoFromUri
+import com.nuzul.capturesnapshot.extension.getVideoResolutionFromUri
 import com.nuzul.capturesnapshot.ui.adapter.CaptureImageAdapter
 import com.nuzul.capturesnapshot.viewmodel.SharedViewModel
 import java.io.File
@@ -82,6 +81,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
     private var timerTask: TimerTask? = null
     private var duration: Int = 0
     private var preview: Preview? = null
+    private var videoFile: File? = null
 
     enum class RecordingState {
         RECORDING, PAUSED, STOPPED
@@ -199,6 +199,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
 
             // Video
             val recorder = Recorder.Builder()
+                .setTargetVideoEncodingBitRate(4_000_000)
                 .setQualitySelector(
                     QualitySelector.from(
                         Quality.HIGHEST,
@@ -303,6 +304,16 @@ class VideoCaptureSnapshotFragment : Fragment() {
         }
     }
 
+    private fun showEventStatusRecord(outputUri: Uri) {
+        val msg = "Video capture succeeded: $outputUri"
+        Log.d(TAG, msg)
+        val fileSize = "Video capture succeeded: ${getSizeFileUri(requireContext(), outputUri)} mb"
+        Log.d(TAG, fileSize)
+        _binding.tvCapacity.text = fileSize
+        val data: Pair<Int, Int> = getVideoResolutionFromUri(requireContext(), outputUri) ?: Pair(854,400)
+        Log.d(TAG, "resolution : ${data.first} || ${data.second}} ")
+    }
+
     private fun startVideo() {
         // If there is an active recording in progress, stop it and release the current recording.
         // We will be notified when the captured video file is ready to be used by our application.
@@ -356,11 +367,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
                         duration = 0
                         timerTask?.cancel()
                         if (!recordEvent.hasError()) {
-                            val msg = "Video capture succeeded: ${recordEvent.outputResults.outputUri}"
-                            Log.d(TAG, msg)
-                            val fileSize = "Video capture succeeded: ${getSizeFileUri(requireContext(), recordEvent.outputResults.outputUri)} mb"
-                            Log.d(TAG, fileSize)
-                            _binding.tvCapacity.text = fileSize
+                            showEventStatusRecord(recordEvent.outputResults.outputUri)
+                            compressVideo(recordEvent.outputResults.outputUri)
                         } else {
                             activeRecording?.close()
                             activeRecording = null
@@ -458,8 +466,66 @@ class VideoCaptureSnapshotFragment : Fragment() {
         timer.scheduleAtFixedRate(timerTask, 1000, 1000)
     }
 
-    fun stopRecording(){
+    private fun stopRecording(){
         activeRecording?.stop()
         activeRecording = null
+    }
+
+    private fun compressVideo(outputUri: Uri){
+        videoFile = requireContext().getVideoFromUri(outputUri)
+        val vidRes = videoFile?.path?.toUri()?.let { getVideoResolutionFromUri(requireContext(), it) } ?: Pair(854, 480)
+        videoFile?.let { videoFile ->
+            val dirPathCompressed = requireContext().externalMediaDirs[0].absolutePath + "/media"
+            if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
+            val outputPath = dirPathCompressed + "/V2_Compressed_${videoFile.name}"
+
+            val width = if (vidRes.first > vidRes.second) 640 else 360
+            val height = if (vidRes.first > vidRes.second) 360 else 640
+
+
+            Mp4Composer(videoFile.path, outputPath)
+                .size(width, height)
+                .fillMode(FillMode.PRESERVE_ASPECT_FIT)
+                .videoFormatMimeType(VideoFormatMimeType.AVC)
+                .videoBitrate(1_000_000)
+                .listener(object : Mp4Composer.Listener {
+                    override fun onProgress(progress: Double) {
+                        _binding.progress.progress = (progress * 100).toInt()
+                    }
+
+                    override fun onCurrentWrittenVideoTime(timeUs: Long) {
+
+                    }
+
+                    override fun onCompleted() {
+                        val compressedVideoFile = File(outputPath)
+                        val compressedVideoUri = Uri.fromFile(compressedVideoFile)
+
+                        MediaScannerConnection.scanFile(
+                            requireContext(),
+                            arrayOf(compressedVideoUri.path, videoFile.path),
+                            null
+                        ) { _, _ -> }
+//                        videoFile.delete()
+
+//                        setResult(
+//                            Activity.RESULT_OK,
+//                            Intent().setData(compressedVideoUri)
+//                        )
+//                        finish()
+                    }
+
+                    override fun onCanceled() {
+                        Log.d(TAG, "onCanceled: Video Compression canceled")
+                    }
+
+                    override fun onFailed(exception: Exception) {
+                        Log.d(TAG, "onCanceled: Video Compression failed : ${exception.message}")
+                    }
+                })
+                .start()
+        }?: run {
+            Toast.makeText(requireContext(), "Video File Not Found", Toast.LENGTH_SHORT).show()
+        }
     }
 }

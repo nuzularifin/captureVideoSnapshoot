@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.hardware.camera2.CameraCharacteristics
 import android.media.Image
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -114,8 +115,70 @@ fun getPath(context: Context, uri: Uri): String? {
     return s
 }
 
+fun Context.getVideoFromUri(videoUri: Uri): File? {
+    if (videoUri.scheme == "file") {
+        return File(videoUri.path ?: "")
+    }
+
+    val contentResolver = this.contentResolver
+    val projection = arrayOf(MediaStore.Video.Media.DATA)
+    val cursor = contentResolver.query(videoUri, projection, null, null, null)
+
+    cursor?.use { it->
+        if (it.moveToFirst()) {
+            val columnIndex = it.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+            val filePath = it.getString(columnIndex)
+            return File(filePath)
+        }
+    }
+
+    return null
+}
+
 fun getSizeFileUri(context: Context, uri: Uri): String {
     val fileSize = File(getPath(context, uri)).length()
     val sizeInMb = fileSize / (1024.0 * 1024)
     return "%.2f".format(sizeInMb)
+}
+
+fun getVideoResolutionFromUri(context: Context, videoUri: Uri): Pair<Int, Int>? {
+    val retriever = MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(context, videoUri)
+
+        val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
+        val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
+        val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toInt()
+
+        if (width != null && height != null) {
+            // Adjust width and height based on rotation
+            return if (rotation == 90 || rotation == 270) {
+                Pair(height, width) // Swap width and height for portrait videos
+            } else {
+                Pair(width, height)
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    } finally {
+        retriever.release()
+    }
+    return null
+}
+
+fun getVideoBitrate(context: Context, uri: Uri): String { //kbps
+    val retriever = MediaMetadataRetriever()
+
+    try {
+        retriever.setDataSource(context, uri)
+        val bitrateStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)
+        val bitrate = bitrateStr?.toIntOrNull() ?: 0
+        return "${bitrate / 1000} kbps"
+    } catch (e: Exception) {
+        e.printStackTrace()
+    } finally {
+        retriever.release()
+    }
+
+    return ""
 }
