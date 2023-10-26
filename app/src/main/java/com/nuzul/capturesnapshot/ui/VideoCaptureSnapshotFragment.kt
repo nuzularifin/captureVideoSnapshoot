@@ -45,8 +45,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.nuzul.capturesnapshot.MainActivity
 import com.nuzul.capturesnapshot.R
 import com.nuzul.capturesnapshot.databinding.FragmentVideoCaptureSnapshotBinding
+import com.nuzul.capturesnapshot.extension.getFormattedVideoSizeInMB
+import com.nuzul.capturesnapshot.extension.getPath
+import com.nuzul.capturesnapshot.extension.getRealSizeFromUri
+import com.nuzul.capturesnapshot.extension.getSizeFileUri
 import com.nuzul.capturesnapshot.ui.adapter.CaptureImageAdapter
 import com.nuzul.capturesnapshot.viewmodel.SharedViewModel
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.Timer
@@ -347,11 +352,15 @@ class VideoCaptureSnapshotFragment : Fragment() {
                     is VideoRecordEvent.Finalize -> {
                         Log.d(TAG, "captureVideo: videoRecordEvent Stop")
                         recordingState = RecordingState.STOPPED
+
                         duration = 0
                         timerTask?.cancel()
                         if (!recordEvent.hasError()) {
                             val msg = "Video capture succeeded: ${recordEvent.outputResults.outputUri}"
                             Log.d(TAG, msg)
+                            val fileSize = "Video capture succeeded: ${getSizeFileUri(requireContext(), recordEvent.outputResults.outputUri)} mb"
+                            Log.d(TAG, fileSize)
+                            _binding.tvCapacity.text = fileSize
                         } else {
                             activeRecording?.close()
                             activeRecording = null

@@ -1,11 +1,15 @@
 package com.nuzul.capturesnapshot.extension
 
+import android.content.Context
+import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.hardware.camera2.CameraCharacteristics
 import android.media.Image
+import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.util.Size
 import android.view.LayoutInflater
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +24,8 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.math.roundToInt
+
 
 inline fun <T : ViewBinding> AppCompatActivity.viewBinding(
     crossinline bindingInflater: (LayoutInflater) -> T) =
@@ -71,4 +77,45 @@ fun isBackCameraLevel3Device(cameraProvider: ProcessCameraProvider) : Boolean {
                 CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3
     }
     return false
+}
+
+fun getFormattedVideoSizeInMB(videoFilePath: String): Double {
+    val videoFile = File(videoFilePath)
+    if (!videoFile.exists()) {
+        return 0.00
+    }
+    val sizeInBytes = videoFile.length()
+    val sizeInMB = sizeInBytes.toDouble() / (1024 * 1024) // Convert bytes to MB
+    return (sizeInMB * 10.0).roundToInt() / 10.0
+}
+
+fun getRealSizeFromUri(context: Context, uri: Uri): String? {
+    var cursor: Cursor? = null
+    return try {
+        val proj = arrayOf(MediaStore.Audio.Media.SIZE)
+        cursor = context.contentResolver.query(uri, proj, null, null, null)
+        val column_index = cursor!!.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+        cursor.moveToFirst()
+        cursor.getString(column_index)
+    } finally {
+        cursor?.close()
+    }
+}
+
+fun getPath(context: Context, uri: Uri): String? {
+    val projection = arrayOf(MediaStore.Images.Media.DATA)
+    val cursor: Cursor =
+        context.contentResolver.query(uri, projection, null, null, null)
+            ?: return null
+    val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+    cursor.moveToFirst()
+    val s = cursor.getString(columnIndex)
+    cursor.close()
+    return s
+}
+
+fun getSizeFileUri(context: Context, uri: Uri): String {
+    val fileSize = File(getPath(context, uri)).length()
+    val sizeInMb = fileSize / (1024.0 * 1024)
+    return "%.2f".format(sizeInMb)
 }
