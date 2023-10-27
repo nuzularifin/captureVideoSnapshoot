@@ -21,6 +21,7 @@
             android:layout_height="wrap_content"/>
 
         <Button
+            android:visibility="gone"
             android:layout_marginTop="16dp"
             android:id="@+id/videoButton"
             android:layout_width="match_parent"
@@ -29,6 +30,7 @@
             android:layout_marginHorizontal="4dp"/>
 
         <Button
+            android:visibility="gone"
             android:id="@+id/photoButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -36,16 +38,18 @@
             android:layout_marginHorizontal="4dp"/>
 
         <Button
+            android:visibility="gone"
             android:id="@+id/imagePickerButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Picker" />
 
         <Button
+            android:layout_marginTop="16dp"
             android:id="@+id/imageCaptureSnapshotButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Picker" />
+            android:text="Capture Video Snapshot" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

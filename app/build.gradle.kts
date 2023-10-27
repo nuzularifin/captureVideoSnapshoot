@@ -76,4 +76,5 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
 
     implementation("com.github.MasayukiSuda:Mp4Composer-android:v0.4.1")
+    implementation("com.github.AbedElazizShe:LightCompressor:1.3.2")
 }

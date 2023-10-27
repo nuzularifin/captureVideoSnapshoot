@@ -1,6 +1,7 @@
 package com.nuzul.capturesnapshot.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
@@ -12,10 +13,12 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Rational
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
@@ -37,7 +40,15 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.abedelazizshe.lightcompressorlibrary.CompressionListener
+import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
+import com.abedelazizshe.lightcompressorlibrary.VideoQuality
+import com.abedelazizshe.lightcompressorlibrary.config.AppSpecificStorageConfiguration
+import com.abedelazizshe.lightcompressorlibrary.config.Configuration
+import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
+import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.daasuu.mp4compose.FillMode
 import com.daasuu.mp4compose.VideoFormatMimeType
 import com.daasuu.mp4compose.composer.Mp4Composer
@@ -50,6 +61,7 @@ import com.nuzul.capturesnapshot.extension.getVideoFromUri
 import com.nuzul.capturesnapshot.extension.getVideoResolutionFromUri
 import com.nuzul.capturesnapshot.ui.adapter.CaptureImageAdapter
 import com.nuzul.capturesnapshot.viewmodel.SharedViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -82,6 +94,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
     private var duration: Int = 0
     private var preview: Preview? = null
     private var videoFile: File? = null
+    private var uris = mutableListOf<Uri>()
 
     enum class RecordingState {
         RECORDING, PAUSED, STOPPED
@@ -199,11 +212,10 @@ class VideoCaptureSnapshotFragment : Fragment() {
 
             // Video
             val recorder = Recorder.Builder()
-                .setTargetVideoEncodingBitRate(4_000_000)
                 .setQualitySelector(
                     QualitySelector.from(
                         Quality.HIGHEST,
-                        FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
+                        FallbackStrategy.lowerQualityThan(Quality.HD)
                     )
                 )
                 .build()
@@ -369,6 +381,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                         if (!recordEvent.hasError()) {
                             showEventStatusRecord(recordEvent.outputResults.outputUri)
                             compressVideo(recordEvent.outputResults.outputUri)
+                            compressVideoLightCompressor(recordEvent.outputResults.outputUri)
                         } else {
                             activeRecording?.close()
                             activeRecording = null
@@ -479,8 +492,11 @@ class VideoCaptureSnapshotFragment : Fragment() {
             if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
             val outputPath = dirPathCompressed + "/V2_Compressed_${videoFile.name}"
 
-            val width = if (vidRes.first > vidRes.second) 640 else 360
-            val height = if (vidRes.first > vidRes.second) 360 else 640
+//            val width = if (vidRes.first > vidRes.second) 640 else 360
+//            val height = if (vidRes.first > vidRes.second) 360 else 640
+
+            val width = if (vidRes.first > vidRes.second) 320 else 240
+            val height = if (vidRes.first > vidRes.second) 240 else 320
 
 
             Mp4Composer(videoFile.path, outputPath)
@@ -498,6 +514,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                     }
 
                     override fun onCompleted() {
+                        Log.d(TAG, "onCompleted: CompressVideo with mp4Composer")
                         val compressedVideoFile = File(outputPath)
                         val compressedVideoUri = Uri.fromFile(compressedVideoFile)
 
@@ -526,6 +543,59 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 .start()
         }?: run {
             Toast.makeText(requireContext(), "Video File Not Found", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun compressVideoLightCompressor(outputUri: Uri){
+        uris.clear()
+        uris.add(outputUri)
+        lifecycleScope.launch {
+            VideoCompressor.start(
+                context = requireContext(), // => This is required
+                uris = uris,
+                isStreamable = false,
+                // THIS STORAGE
+                sharedStorageConfiguration = SharedStorageConfiguration(
+                    saveAt = SaveLocation.movies, // => default is movies
+                    subFolderName = "my-videos" // => optional
+                ),
+                configureWith = Configuration(
+                    videoNames = uris.map { uri -> uri.pathSegments.last() },
+                    quality = VideoQuality.LOW,
+                    isMinBitrateCheckEnabled = false,
+                    videoBitrateInMbps = 5, /*Int, ignore, or null*/
+                    disableAudio = false, /*Boolean, or ignore*/
+                    keepOriginalResolution = false, /*Boolean, or ignore*/
+                    videoWidth = 320.0, /*Double, ignore, or null*/
+                    videoHeight = 240.0 /*Double, ignore, or null*/
+                ),
+                listener = object : CompressionListener {
+                    override fun onProgress(index: Int, percent: Float) {
+                        // Update UI with progress value
+//                    _binding.progress.progress = percent.toInt()
+                    }
+
+                    override fun onStart(index: Int) {
+                        // Compression start
+                        Log.d(TAG, "onStart:  Compress video with LightCompress start for index: $index")
+                    }
+
+                    override fun onSuccess(index: Int, size: Long, path: String?) {
+                        // On Compression success
+                        Log.d(TAG, "onSuccess: $index, $path")
+                    }
+
+                    override fun onFailure(index: Int, failureMessage: String) {
+                        Log.d(TAG, "onFailure: $index, $failureMessage")
+                    }
+
+                    override fun onCancelled(index: Int) {
+                        // On Cancelled
+
+                    }
+                }
+            )
         }
     }
 }
