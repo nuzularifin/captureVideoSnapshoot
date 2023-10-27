@@ -2,10 +2,8 @@ package com.nuzul.capturesnapshot.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
-import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -13,12 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
-import android.util.Rational
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Toast
-import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
@@ -45,7 +42,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
-import com.abedelazizshe.lightcompressorlibrary.config.AppSpecificStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
@@ -55,7 +51,6 @@ import com.daasuu.mp4compose.composer.Mp4Composer
 import com.nuzul.capturesnapshot.MainActivity
 import com.nuzul.capturesnapshot.R
 import com.nuzul.capturesnapshot.databinding.FragmentVideoCaptureSnapshotBinding
-import com.nuzul.capturesnapshot.extension.getPath
 import com.nuzul.capturesnapshot.extension.getSizeFileUri
 import com.nuzul.capturesnapshot.extension.getVideoFromUri
 import com.nuzul.capturesnapshot.extension.getVideoResolutionFromUri
@@ -96,6 +91,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
     private var videoFile: File? = null
     private var uris = mutableListOf<Uri>()
 
+    lateinit var supportedQualities: List<Quality>
+    lateinit var filteredQualities: List<Quality>
     enum class RecordingState {
         RECORDING, PAUSED, STOPPED
     }
@@ -111,6 +108,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
         const val CHANNEL_ID: String = "media_recorder_service"
         const val CHANNEL_NAME: String = "Media recording service"
         const val ONGOING_NOTIFICATION_ID: Int = 2345
+
+        private const val BIT_RATE = 32000
 
         fun newInstance() = VideoCaptureSnapshotFragment()
     }
@@ -194,6 +193,15 @@ class VideoCaptureSnapshotFragment : Fragment() {
         )
 
         startCamera()
+
+
+    }
+
+    private fun setupQualityListView(){
+        _binding.lvAccordingVideo.apply {
+            adapter = ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1,
+                filteredQualities.map { it.qualityToString() })
+        }
     }
 
     private fun startCamera() {
@@ -211,12 +219,11 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 }
 
             // Video
+//            val preferredQuality = Quality.HD
             val recorder = Recorder.Builder()
+                .setTargetVideoEncodingBitRate(BIT_RATE)
                 .setQualitySelector(
-                    QualitySelector.from(
-                        Quality.HIGHEST,
-                        FallbackStrategy.lowerQualityThan(Quality.HD)
-                    )
+                    getQualitySelector()
                 )
                 .build()
             videoCapture = VideoCapture.withOutput(recorder)
@@ -241,10 +248,42 @@ class VideoCaptureSnapshotFragment : Fragment() {
 
                 // Bind use cases to camera
 
-                cameraInfo = cameraProvider?.bindToLifecycle(this, cameraSelector!!, useCaseGroup)?.cameraInfo
+                cameraInfo = cameraProvider?.bindToLifecycle(
+                    this,
+                    cameraSelector!!,
+                    useCaseGroup
+                )?.cameraInfo
                 observeCameraState(cameraInfo)
+                supportedQualities = QualitySelector.getSupportedQualities(cameraInfo!!)
+                filteredQualities = arrayListOf(Quality.UHD, Quality.FHD, Quality.HD, Quality.SD).filter { supportedQualities.contains(it) }
+
+                setupQualityListView()
+//                val supportedQualities = QualitySelector.getSupportedQualities(cameraInfo!!)
+//                for (quality in supportedQualities) {
+//                    when (quality) {
+//                        Quality.UHD -> {
+//                            //Add "Ultra High Definition (UHD) - 2160p" to the list
+//                            listOfQualitiesToEnumerate.add("Ultra High Definition (UHD) - 2160p")
+//                        }
+//
+//                        Quality.FHD -> {
+//                            //Add "Full High Definition (FHD) - 1080p" to the list
+//                            listOfQualitiesToEnumerate.add("Full High Definition (FHD) - 1080p")
+//                        }
+//
+//                        Quality.HD -> {
+//                            //Add "High Definition (HD) - 720p" to the list
+//                            listOfQualitiesToEnumerate.add("High Definition (HD) - 720p")
+//                        }
+//
+//                        Quality.SD -> {
+//                            //Add "Standard Definition (SD) - 480p" to the list
+//                            listOfQualitiesToEnumerate.add("Standard Definition (SD) - 480p")
+//                        }
+//                    }
+//                }
 //                startVideo()
-            } catch(exc: Exception) {
+            } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
         }, ContextCompat.getMainExecutor(requireContext()))
@@ -255,22 +294,26 @@ class VideoCaptureSnapshotFragment : Fragment() {
     ) {
         cameraInfo?.cameraState?.observe(viewLifecycleOwner) { cameraState ->
             run {
-                when(cameraState.type){
+                when (cameraState.type) {
                     CameraState.Type.PENDING_OPEN -> {
                         Log.d(TAG, "observeCameraState: PENDING-OPEN")
                     }
+
                     CameraState.Type.OPENING -> {
                         Log.d(TAG, "observeCameraState: OPENING")
                     }
+
                     CameraState.Type.OPEN -> {
                         // Setup Camera resources and begin processing
                         Log.d(TAG, "observeCameraState: OPEN")
                         startVideo()
                     }
+
                     CameraState.Type.CLOSING -> {
                         // Close camera UI
                         Log.d(TAG, "observeCameraState: CLOSING")
                     }
+
                     CameraState.Type.CLOSED -> {
                         // Free camera resources
                         Log.d(TAG, "observeCameraState: CLOSED")
@@ -278,22 +321,32 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 }
             }
             cameraState.error?.let { error ->
-                when(error.code){
+                when (error.code) {
                     // Open errors
                     CameraState.ERROR_STREAM_CONFIG -> {
                         // Make sure to setup the use cases properly
-                        Toast.makeText(context, "Stream config error. Restart application", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            "Stream config error. Restart application",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                     // Opening errors
                     CameraState.ERROR_CAMERA_IN_USE -> {
                         // Close the camera or ask user to close another camera app that's using the
                         // camera
-                        Toast.makeText(context, "Camera in use. Close any apps that are using the camera", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            "Camera in use. Close any apps that are using the camera",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
+
                     CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
                         // Close another open camera in the app, or ask the user to close another
                         // camera app that's using the camera
                     }
+
                     CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
 
                     }
@@ -302,6 +355,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                         // Ask the user to enable the device's cameras
                         Toast.makeText(context, "Camera disabled", Toast.LENGTH_SHORT).show()
                     }
+
                     CameraState.ERROR_CAMERA_FATAL_ERROR -> {
                         // Ask the user to reboot the device to restore camera function
                         Toast.makeText(context, "Fatal error", Toast.LENGTH_SHORT).show()
@@ -309,7 +363,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
                     // Closed errors
                     CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> {
                         // Ask the user to disable the "Do Not Disturb" mode, then reopen the camera
-                        Toast.makeText(context, "Do not disturb mode enabled", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Do not disturb mode enabled", Toast.LENGTH_SHORT)
+                            .show()
                     }
                 }
             }
@@ -322,7 +377,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
         val fileSize = "Video capture succeeded: ${getSizeFileUri(requireContext(), outputUri)} mb"
         Log.d(TAG, fileSize)
         _binding.tvCapacity.text = fileSize
-        val data: Pair<Int, Int> = getVideoResolutionFromUri(requireContext(), outputUri) ?: Pair(854,400)
+        val data: Pair<Int, Int> =
+            getVideoResolutionFromUri(requireContext(), outputUri) ?: Pair(854, 400)
         Log.d(TAG, "resolution : ${data.first} || ${data.second}} ")
     }
 
@@ -360,9 +416,9 @@ class VideoCaptureSnapshotFragment : Fragment() {
         activeRecording = videoCapture.output
             .prepareRecording(requireContext(), mediaStoreOutputOptions)
             .apply {
-                if (PermissionChecker.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PermissionChecker.PERMISSION_GRANTED) {
-                    withAudioEnabled()
-                }
+//                if (PermissionChecker.checkSelfPermission(requireContext(), Manifest.permission.RECORD_AUDIO) == PermissionChecker.PERMISSION_GRANTED) {
+//                    withAudioEnabled()
+//                }
             }
             .start(ContextCompat.getMainExecutor(requireContext())) { recordEvent ->
                 when (recordEvent) {
@@ -391,6 +447,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 }
             }
     }
+
     private fun saveImage(bitmap: Bitmap) {
         val resolver: ContentResolver = requireContext().contentResolver
         val contentValues = ContentValues()
@@ -460,15 +517,13 @@ class VideoCaptureSnapshotFragment : Fragment() {
         return captureImageAdapter.captureImages.indexOfFirst { it.uriImage == null }
     }
 
-    private fun getQualitySelector(): QualitySelector {
-        return QualitySelector.from(
-            Quality.HIGHEST,
-            FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
-        )
-    }
+    private fun getQualitySelector() = QualitySelector.fromOrderedList(
+        listOf(Quality.SD),
+        FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
+    )
 
     private fun startTrackingTime() {
-        timerTask = object: TimerTask() {
+        timerTask = object : TimerTask() {
             override fun run() {
                 if (recordingState == RecordingState.RECORDING) {
                     duration += 1
@@ -479,31 +534,29 @@ class VideoCaptureSnapshotFragment : Fragment() {
         timer.scheduleAtFixedRate(timerTask, 1000, 1000)
     }
 
-    private fun stopRecording(){
+    private fun stopRecording() {
         activeRecording?.stop()
         activeRecording = null
     }
 
-    private fun compressVideo(outputUri: Uri){
+    private fun compressVideo(outputUri: Uri) {
         videoFile = requireContext().getVideoFromUri(outputUri)
-        val vidRes = videoFile?.path?.toUri()?.let { getVideoResolutionFromUri(requireContext(), it) } ?: Pair(854, 480)
+        val vidRes =
+            videoFile?.path?.toUri()?.let { getVideoResolutionFromUri(requireContext(), it) }
+                ?: Pair(854, 480)
         videoFile?.let { videoFile ->
             val dirPathCompressed = requireContext().externalMediaDirs[0].absolutePath + "/media"
             if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
             val outputPath = dirPathCompressed + "/V2_Compressed_${videoFile.name}"
 
-//            val width = if (vidRes.first > vidRes.second) 640 else 360
-//            val height = if (vidRes.first > vidRes.second) 360 else 640
-
             val width = if (vidRes.first > vidRes.second) 320 else 240
             val height = if (vidRes.first > vidRes.second) 240 else 320
-
 
             Mp4Composer(videoFile.path, outputPath)
                 .size(width, height)
                 .fillMode(FillMode.PRESERVE_ASPECT_FIT)
                 .videoFormatMimeType(VideoFormatMimeType.AVC)
-                .videoBitrate(1_000_000)
+                .videoBitrate(BIT_RATE)
                 .listener(object : Mp4Composer.Listener {
                     override fun onProgress(progress: Double) {
                         _binding.progress.progress = (progress * 100).toInt()
@@ -541,13 +594,13 @@ class VideoCaptureSnapshotFragment : Fragment() {
                     }
                 })
                 .start()
-        }?: run {
+        } ?: run {
             Toast.makeText(requireContext(), "Video File Not Found", Toast.LENGTH_SHORT).show()
         }
     }
 
     @SuppressLint("SetTextI18n")
-    private fun compressVideoLightCompressor(outputUri: Uri){
+    private fun compressVideoLightCompressor(outputUri: Uri) {
         uris.clear()
         uris.add(outputUri)
         lifecycleScope.launch {
@@ -558,7 +611,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 // THIS STORAGE
                 sharedStorageConfiguration = SharedStorageConfiguration(
                     saveAt = SaveLocation.movies, // => default is movies
-                    subFolderName = "my-videos" // => optional
+                    subFolderName = "LightCompress-videos" // => optional
                 ),
                 configureWith = Configuration(
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
@@ -567,8 +620,8 @@ class VideoCaptureSnapshotFragment : Fragment() {
                     videoBitrateInMbps = 5, /*Int, ignore, or null*/
                     disableAudio = false, /*Boolean, or ignore*/
                     keepOriginalResolution = false, /*Boolean, or ignore*/
-                    videoWidth = 320.0, /*Double, ignore, or null*/
-                    videoHeight = 240.0 /*Double, ignore, or null*/
+                    videoWidth = 240.0, /*Double, ignore, or null*/
+                    videoHeight = 320.0 /*Double, ignore, or null*/
                 ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
@@ -578,7 +631,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
 
                     override fun onStart(index: Int) {
                         // Compression start
-                        Log.d(TAG, "onStart:  Compress video with LightCompress start for index: $index")
+                        Log.d(TAG, "onStart Compress video: $index")
                     }
 
                     override fun onSuccess(index: Int, size: Long, path: String?) {
@@ -594,8 +647,19 @@ class VideoCaptureSnapshotFragment : Fragment() {
                         // On Cancelled
 
                     }
+
                 }
             )
+        }
+    }
+
+    fun Quality.qualityToString(): String {
+        return when (this) {
+            Quality.UHD -> "UHD"
+            Quality.FHD -> "FHD"
+            Quality.HD -> "HD"
+            Quality.SD -> "SD"
+            else -> throw IllegalArgumentException()
         }
     }
 }
