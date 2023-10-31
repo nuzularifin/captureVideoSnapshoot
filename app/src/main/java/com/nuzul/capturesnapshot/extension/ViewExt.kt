@@ -1,5 +1,6 @@
 package com.nuzul.capturesnapshot.extension
 
+import android.R.attr.data
 import android.content.Context
 import android.database.Cursor
 import android.graphics.Bitmap
@@ -11,6 +12,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import android.util.Size
 import android.view.LayoutInflater
 import androidx.appcompat.app.AppCompatActivity
@@ -116,7 +118,7 @@ fun getPath(context: Context, uri: Uri): String? {
 }
 
 fun Context.getVideoFromUri(videoUri: Uri): File? {
-    if (videoUri.scheme == "file") {
+    if (videoUri.scheme == "file" || videoUri.scheme == "content") {
         return File(videoUri.path ?: "")
     }
 

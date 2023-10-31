@@ -118,7 +118,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
         const val CHANNEL_NAME: String = "Media recording service"
         const val ONGOING_NOTIFICATION_ID: Int = 2345
 
-        private const val BIT_RATE = 200000
+        private const val BIT_RATE = 500000
 
         fun newInstance() = VideoCaptureSnapshotFragment()
     }
