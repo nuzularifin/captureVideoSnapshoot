@@ -1,6 +1,7 @@
 package com.nuzul.capturesnapshot.ui
 
 import android.annotation.SuppressLint
+import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Bundle
@@ -16,19 +17,19 @@ import androidx.lifecycle.lifecycleScope
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
-import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.compressVideo
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
+import com.arthenica.ffmpegkit.FFmpegKit
 import com.daasuu.mp4compose.FillMode
 import com.daasuu.mp4compose.VideoFormatMimeType
 import com.daasuu.mp4compose.composer.Mp4Composer
 import com.nuzul.capturesnapshot.R
 import com.nuzul.capturesnapshot.databinding.FragmentEntryBinding
-import com.nuzul.capturesnapshot.extension.getVideoFromUri
 import com.nuzul.capturesnapshot.extension.getVideoResolutionFromUri
-import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
+import kotlinx.coroutines.launch
 
 class EntryFragment : Fragment() {
 
@@ -47,7 +48,7 @@ class EntryFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View? {
         _binding = FragmentEntryBinding.inflate(inflater, container, false)
         return _binding.root
@@ -87,7 +88,7 @@ class EntryFragment : Fragment() {
     }
 
     private fun setupCompressView() {
-        with(_binding){
+        with(_binding) {
             btnCompressWithFfmpeg.setOnClickListener {
                 pickVideo()
             }
@@ -106,22 +107,31 @@ class EntryFragment : Fragment() {
         compressLightLauncher.launch("video/*")
     }
 
-    private fun pickVideoMp4(){
+    private fun pickVideoMp4() {
         compressMp4Launcher.launch("video/*")
     }
 
-    private val compressLightLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            showEventStatusRecord(it)
-            compressVideoLightCompressor(it)
+    private val compressLightLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                showEventStatusRecord(it)
+                compressVideoLightCompressor(it)
+            }
         }
-    }
 
-    private val compressMp4Launcher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            compressVideoMp4(it)
+    private val compressMp4Launcher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                compressVideoMp4(it)
+            }
         }
-    }
+
+    private val compressFfmpegLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) {
+            it?.let {
+                compressFfmpeg(it)
+            }
+        }
 
     @SuppressLint("SetTextI18n")
     private fun compressVideoLightCompressor(outputUri: Uri) {
@@ -152,7 +162,10 @@ class EntryFragment : Fragment() {
                         // Update UI with progress value
                         requireActivity().runOnUiThread {
                             _binding.pbLight.progress = percent.toInt()
-                            Log.d(TAG, "onProgress: Light Compression status : ${percent.toInt()} %")
+                            Log.d(
+                                TAG,
+                                "onProgress: Light Compression status : ${percent.toInt()} %"
+                            )
                         }
                     }
 
@@ -182,12 +195,13 @@ class EntryFragment : Fragment() {
 
     private fun compressVideoMp4(uri: Uri) {
         try {
-            videoFile = requireContext().getVideoFromUri(uri)
+            videoFile = createTempFile(uri)
             val vidRes =
                 videoFile?.path?.toUri()?.let { getVideoResolutionFromUri(requireContext(), it) }
                     ?: Pair(854, 480)
             videoFile?.let { videoFile ->
-                val dirPathCompressed = requireContext().externalMediaDirs[0].absolutePath + "/media"
+                val dirPathCompressed =
+                    requireContext().externalMediaDirs[0].absolutePath + "/media"
                 if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
                 val outputPath = dirPathCompressed + "/mp4Composer_${videoFile.name}"
 
@@ -232,15 +246,18 @@ class EntryFragment : Fragment() {
                         }
 
                         override fun onFailed(exception: Exception) {
-                            Log.d(TAG, "onCanceled: Video Compression failed : ${exception.message}")
+                            Log.d(
+                                TAG,
+                                "onCanceled: Video Compression failed : ${exception.message}"
+                            )
                         }
                     })
                     .start()
             } ?: run {
                 Toast.makeText(requireContext(), "Video File Not Found", Toast.LENGTH_SHORT).show()
             }
-        } catch (e: Exception){
-            Log.e(TAG, "compressVideoMp4: ${e.printStackTrace()}", )
+        } catch (e: Exception) {
+            Log.e(TAG, "compressVideoMp4: ${e.printStackTrace()}")
         }
     }
 
@@ -249,4 +266,77 @@ class EntryFragment : Fragment() {
     }
 
 
+    private fun createTempFile(uri: Uri): File {
+        val data = ByteArray(20000)
+        var fileOutputStream: FileOutputStream? = null
+        val outputFileName: String =
+            File.createTempFile("vid", ".mp4", requireActivity().cacheDir).absolutePath
+        fileOutputStream = FileOutputStream(outputFileName)
+
+        var nRead: Int
+        val fileInputStream = requireContext().contentResolver.openInputStream(uri)
+        while (fileInputStream!!.read(data, 0, data.size).also { nRead = it } != -1) {
+            fileOutputStream.write(data, 0, nRead)
+        }
+        fileInputStream.close()
+        fileOutputStream.flush()
+        fileOutputStream.close()
+        return File(outputFileName)
+    }
+
+    private fun compressFfmpeg(uri: Uri) {
+        val retriever = MediaMetadataRetriever()
+        val source = createTempFile(uri)
+        retriever.setDataSource(source.path)
+        val length =
+            Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION))
+
+        val dirPathCompressed =
+            requireContext().externalMediaDirs[0].absolutePath + "/media"
+        if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
+        val outputPath = dirPathCompressed + "/FFMPEG-${System.currentTimeMillis()}.mp4"
+
+//        ffmpeg -i input.mp4 -vcodec libx265 -crf 28 output.mp4
+        FFmpegKit.executeAsync(
+            createCommand(source.absolutePath, outputPath),
+//            "-i $sourcePath -c:v mpeg4 $output",
+            { session ->
+
+            },
+            {
+
+            }
+        ) {
+            _binding.pbFfmpeg.progress = ((it.time * 100) / length).toInt()
+            Log.e("STATISTIC ", "${(it.time * 100) / length}")
+        }
+    }
+
+    private fun createCommand(sourcePath: String, output: String): String {
+        return mutableListOf<String>().apply {
+            add("-y")
+            add("-i")
+            add(sourcePath)
+//            add("-s")
+//            add("${VideoCompressor.WIDTH}x${VideoCompressor.HEIGHT}")
+//            add("-r")
+//            add("${if (FRAME_RATE >= 10) FRAME_RATE - 5 else FRAME_RATE}")
+            add("-vcodec")
+            add("mpeg4")
+            add("-b:v")
+            add("100k")
+//            add("-b:a")
+//            add("48000")
+//            add("-ac")
+//            add("2")
+//            add("-ar")
+//            add("22050")
+//            add("-preset")
+//            add("ultrafast")
+//            add("-vcodec libx265 -crf 28")
+//            add("-vf scale=426:240")
+//            add("-preset slower")
+            add(output)
+        }.joinToString(separator = " ")
+    }
 }

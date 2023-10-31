@@ -72,6 +72,7 @@ dependencies {
     implementation("androidx.camera:camera-extensions:${cameraxVersion}")
 
     implementation("androidx.lifecycle:lifecycle-service:2.4.0")
+    implementation("com.arthenica:ffmpeg-kit-min-gpl:6.0-2")
 
     implementation("com.github.bumptech.glide:glide:4.16.0")
 
