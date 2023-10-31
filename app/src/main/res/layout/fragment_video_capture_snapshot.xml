@@ -121,15 +121,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"/>
 
-    <ListView
-        android:visibility="gone"
-        android:id="@+id/lv_according_video"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/cl_action"
-        android:layout_width="wrap_content"
-        android:layout_height="100dp"/>
-
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/cl_action"
         android:orientation="vertical"
@@ -147,7 +138,19 @@
             android:layout_height="wrap_content"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            android:id="@+id/progress"
+            android:id="@+id/pb_mp4compress"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:max="100" />
+
+        <ProgressBar
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            app:layout_constraintTop_toBottomOf="@id/pb_mp4compress"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:id="@+id/pb_light_compress"
             android:layout_centerHorizontal="true"
             android:layout_centerVertical="true"
             android:max="100" />
@@ -155,9 +158,11 @@
         <androidx.appcompat.widget.AppCompatImageButton
             style="@style/Base.Theme.CaptureSnapshot"
             android:layout_marginHorizontal="16dp"
+            android:visibility="visible"
             android:layout_marginVertical="16dp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/progress"
+            app:layout_constraintStart_toEndOf="@id/lv_according_video"
+            app:layout_constraintTop_toBottomOf="@id/pb_light_compress"
+            app:layout_constraintEnd_toStartOf="@id/btn_take_photo"
             app:layout_constraintBottom_toBottomOf="parent"
             android:id="@+id/btn_gallery"
             android:src="@drawable/ic_flash"
@@ -171,9 +176,9 @@
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:background="@drawable/selectable_button_bg"
-            app:layout_constraintTop_toBottomOf="@id/progress"
+            app:layout_constraintTop_toBottomOf="@id/pb_light_compress"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toEndOf="@id/btn_gallery"
+            app:layout_constraintStart_toEndOf="@id/lv_according_video"
             app:layout_constraintEnd_toStartOf="@id/btn_video_record"
             android:id="@+id/btn_take_photo"
             android:layout_marginVertical="16dp"
@@ -185,7 +190,7 @@
         <androidx.appcompat.widget.AppCompatImageButton
             android:layout_marginHorizontal="16dp"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/progress"
+            app:layout_constraintTop_toBottomOf="@id/pb_light_compress"
             app:layout_constraintBottom_toBottomOf="parent"
             android:id="@+id/btn_video_record"
             android:layout_marginVertical="16dp"
@@ -196,6 +201,15 @@
             android:textColor="@color/white"
             android:layout_width="40dp"
             android:layout_height="40dp"/>
+
+        <ListView
+            android:background="@color/white"
+            android:id="@+id/lv_according_video"
+            app:layout_constraintStart_toStartOf="parent"
+            android:layout_width="60dp"
+            app:layout_constraintTop_toBottomOf="@id/pb_light_compress"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_height="0dp"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

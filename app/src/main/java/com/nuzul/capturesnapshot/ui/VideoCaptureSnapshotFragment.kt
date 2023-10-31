@@ -1,9 +1,10 @@
 package com.nuzul.capturesnapshot.ui
 
-import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
+import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import android.net.Uri
@@ -16,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
@@ -32,7 +34,6 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
@@ -97,6 +98,14 @@ class VideoCaptureSnapshotFragment : Fragment() {
         RECORDING, PAUSED, STOPPED
     }
 
+    private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            showEventStatusRecord(it)
+            compressVideo(it)
+            compressVideoLightCompressor(it)
+        }
+    }
+
     companion object {
         private val TAG: String = VideoCaptureSnapshotFragment::class.java.simpleName
         private const val MINUTE: Int = 60
@@ -109,7 +118,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
         const val CHANNEL_NAME: String = "Media recording service"
         const val ONGOING_NOTIFICATION_ID: Int = 2345
 
-        private const val BIT_RATE = 32000
+        private const val BIT_RATE = 200000
 
         fun newInstance() = VideoCaptureSnapshotFragment()
     }
@@ -138,7 +147,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
         }
 
         _binding.btnGallery.setOnClickListener {
-
+            getContent.launch("video/*")
         }
 
         _binding.rvPhoto.apply {
@@ -193,7 +202,6 @@ class VideoCaptureSnapshotFragment : Fragment() {
         )
 
         startCamera()
-
 
     }
 
@@ -547,7 +555,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
         videoFile?.let { videoFile ->
             val dirPathCompressed = requireContext().externalMediaDirs[0].absolutePath + "/media"
             if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
-            val outputPath = dirPathCompressed + "/V2_Compressed_${videoFile.name}"
+            val outputPath = dirPathCompressed + "/mp4Composer_${videoFile.name}"
 
             val width = if (vidRes.first > vidRes.second) 320 else 240
             val height = if (vidRes.first > vidRes.second) 240 else 320
@@ -559,7 +567,7 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 .videoBitrate(BIT_RATE)
                 .listener(object : Mp4Composer.Listener {
                     override fun onProgress(progress: Double) {
-                        _binding.progress.progress = (progress * 100).toInt()
+                        _binding.pbMp4compress.progress = (progress * 100).toInt()
                     }
 
                     override fun onCurrentWrittenVideoTime(timeUs: Long) {
@@ -615,9 +623,9 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 ),
                 configureWith = Configuration(
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
-                    quality = VideoQuality.LOW,
+                    quality = VideoQuality.VERY_LOW,
                     isMinBitrateCheckEnabled = false,
-                    videoBitrateInMbps = 5, /*Int, ignore, or null*/
+//                    videoBitrateInMbps = 5, /*Int, ignore, or null*/
                     disableAudio = false, /*Boolean, or ignore*/
                     keepOriginalResolution = false, /*Boolean, or ignore*/
                     videoWidth = 240.0, /*Double, ignore, or null*/
@@ -626,7 +634,10 @@ class VideoCaptureSnapshotFragment : Fragment() {
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
                         // Update UI with progress value
-//                    _binding.progress.progress = percent.toInt()
+                        requireActivity().runOnUiThread {
+                            _binding.pbLightCompress.progress = percent.toInt()
+                            Log.d(TAG, "onProgress: Light Compression status : ${percent.toInt()} %")
+                        }
                     }
 
                     override fun onStart(index: Int) {
