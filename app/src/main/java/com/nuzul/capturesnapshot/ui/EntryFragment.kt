@@ -345,7 +345,7 @@ class EntryFragment : Fragment() {
 //            add("-preset")
 //            add("ultrafast")
 //            add("-vcodec libx265 -crf 28")
-//            add("-vf scale=426:240")
+            add("-vf scale=${WIDTH_RESOLUTION}:${HEIGHT_RESOLUTION}")
 //            add("-preset slower")
             add(output)
         }.joinToString(separator = " ")
