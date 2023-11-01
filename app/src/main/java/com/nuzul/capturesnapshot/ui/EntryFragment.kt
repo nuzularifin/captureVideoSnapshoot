@@ -21,6 +21,7 @@ import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.ReturnCode
 import com.daasuu.mp4compose.FillMode
 import com.daasuu.mp4compose.VideoFormatMimeType
 import com.daasuu.mp4compose.composer.Mp4Composer
@@ -36,6 +37,9 @@ class EntryFragment : Fragment() {
     private var videoFile: File? = null
     private val BIT_RATE = 500000
     private var uris = mutableListOf<Uri>()
+
+    private var WIDTH_RESOLUTION = 320
+    private var HEIGHT_RESOLUTION = 240
 
     companion object {
 
@@ -90,7 +94,7 @@ class EntryFragment : Fragment() {
     private fun setupCompressView() {
         with(_binding) {
             btnCompressWithFfmpeg.setOnClickListener {
-                pickVideo()
+                pickVideoFFmpeg()
             }
 
             btnCompressWithLigth.setOnClickListener {
@@ -109,6 +113,10 @@ class EntryFragment : Fragment() {
 
     private fun pickVideoMp4() {
         compressMp4Launcher.launch("video/*")
+    }
+
+    private fun pickVideoFFmpeg(){
+        compressFfmpegLauncher.launch("video/*")
     }
 
     private val compressLightLauncher =
@@ -154,8 +162,8 @@ class EntryFragment : Fragment() {
 //                    videoBitrateInMbps = 5, /*Int, ignore, or null*/
                     disableAudio = false, /*Boolean, or ignore*/
                     keepOriginalResolution = false, /*Boolean, or ignore*/
-                    videoWidth = 240.0, /*Double, ignore, or null*/
-                    videoHeight = 320.0 /*Double, ignore, or null*/
+                    videoWidth = HEIGHT_RESOLUTION.toDouble(), /*Double, ignore, or null*/
+                    videoHeight = WIDTH_RESOLUTION.toDouble() /*Double, ignore, or null*/
                 ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
@@ -205,8 +213,8 @@ class EntryFragment : Fragment() {
                 if (!File(dirPathCompressed).exists()) File(dirPathCompressed).mkdir()
                 val outputPath = dirPathCompressed + "/mp4Composer_${videoFile.name}"
 
-                val width = if (vidRes.first > vidRes.second) 320 else 240
-                val height = if (vidRes.first > vidRes.second) 240 else 320
+                val width = if (vidRes.first > vidRes.second) WIDTH_RESOLUTION else HEIGHT_RESOLUTION
+                val height = if (vidRes.first > vidRes.second) HEIGHT_RESOLUTION else WIDTH_RESOLUTION
 
                 Mp4Composer(videoFile.path, outputPath)
                     .size(width, height)
@@ -298,10 +306,13 @@ class EntryFragment : Fragment() {
 
 //        ffmpeg -i input.mp4 -vcodec libx265 -crf 28 output.mp4
         FFmpegKit.executeAsync(
-            createCommand(source.absolutePath, outputPath),
-//            "-i $sourcePath -c:v mpeg4 $output",
+            createCommand(source.absolutePath, outputPath), //            "-i $sourcePath -c:v mpeg4 $output",
             { session ->
-
+                if (ReturnCode.isSuccess(session.returnCode)){
+                    Log.d(TAG, "compressFfmpeg: returnCode:${session.returnCode} Success")
+                } else {
+                    Log.d(TAG, "compressFfmpeg: returnCode:${session.returnCode} Failure")
+                }
             },
             {
 
@@ -318,13 +329,13 @@ class EntryFragment : Fragment() {
             add("-i")
             add(sourcePath)
 //            add("-s")
-//            add("${VideoCompressor.WIDTH}x${VideoCompressor.HEIGHT}")
+//            add("${WIDTH_RESOLUTION}x${HEIGHT_RESOLUTION}")
 //            add("-r")
 //            add("${if (FRAME_RATE >= 10) FRAME_RATE - 5 else FRAME_RATE}")
             add("-vcodec")
             add("mpeg4")
             add("-b:v")
-            add("100k")
+            add("200k")
 //            add("-b:a")
 //            add("48000")
 //            add("-ac")
